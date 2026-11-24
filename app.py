@@ -11,7 +11,7 @@ import streamlit as st
 import config
 import rag
 
-MODES = {"rag": "RAG", "plain": "无 RAG", "compare": "对比"}
+MODES = {"rag": "RAG", "plain": "无 RAG"}
 PROJECT_COLORS = {"Obsidian": "violet", "Dataview": "blue", "Tasks": "green"}
 PROJECT_LABELS = {
     "Obsidian": "Obsidian 官方帮助",
@@ -31,14 +31,36 @@ LLM_NAME = Path(config.QWEN_MODEL_PATH).name
 
 CSS = """
 <style>
-.block-container { padding-top: 2.2rem; max-width: 1180px; }
-.hero { margin-bottom: 1.2rem; }
-.hero-title {
-    font-size: 2.1rem; font-weight: 750; letter-spacing: -0.02em; line-height: 1.2;
-    background: linear-gradient(90deg, #6D28D9 0%, #A855F7 60%, #EC4899 100%);
-    -webkit-background-clip: text; background-clip: text; color: transparent;
+[data-testid="stHeader"] {
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(124, 58, 237, 0.08);
 }
-.hero-sub { color: #6B6680; font-size: 0.98rem; margin-top: 0.35rem; }
+[data-testid="stDecoration"] { display: none; }
+.block-container { padding-top: 5.4rem; max-width: 1180px; }
+.hero {
+    display: flex; align-items: center; gap: 1rem;
+    margin: 0 0 1.35rem; padding: 1.05rem 1.2rem 1.1rem;
+    border: 1px solid rgba(124, 58, 237, 0.16); border-radius: 1rem;
+    background:
+        linear-gradient(120deg, rgba(124, 58, 237, 0.1), rgba(236, 72, 153, 0.05) 42%, rgba(255, 255, 255, 0) 70%),
+        #fff;
+}
+.hero-mark {
+    flex: none; width: 3rem; height: 3rem; border-radius: 0.85rem;
+    display: grid; place-items: center; color: white; font-size: 1.15rem; font-weight: 750;
+    background: linear-gradient(135deg, #6D28D9 0%, #A855F7 55%, #EC4899 100%);
+    box-shadow: 0 8px 18px rgba(124, 58, 237, 0.22);
+}
+.hero-kicker {
+    color: #7C3AED; font-size: 0.74rem; font-weight: 750;
+    letter-spacing: 0.08em; text-transform: uppercase;
+}
+.hero-title {
+    margin-top: 0.12rem; font-size: 1.85rem; font-weight: 760;
+    letter-spacing: -0.03em; line-height: 1.15; color: #1F1B2E;
+}
+.hero-sub { color: #6B6680; font-size: 0.95rem; margin-top: 0.28rem; line-height: 1.45; }
 .pipeline { color: #6B6680; font-size: 0.82rem; line-height: 1.9; }
 .pipeline b { color: #6D28D9; font-weight: 600; }
 .panel-label { font-size: 0.8rem; font-weight: 650; letter-spacing: 0.04em; margin-bottom: 0.3rem; }
@@ -263,7 +285,7 @@ def render_turn(turn: dict, live: bool = False) -> None:
         st.markdown(turn["question"])
 
     with st.chat_message("assistant"):
-        mode = turn["mode"]
+        mode = "rag" if turn["mode"] == "compare" else turn["mode"]
 
         if live and mode != "plain":
             started = time.perf_counter()
@@ -276,16 +298,9 @@ def render_turn(turn: dict, live: bool = False) -> None:
             except (rag.IndexNotReady, rag.ModelNotReady) as error:
                 turn["errors"]["rag"] = f"无法检索：{error}"
 
-        if mode == "compare":
-            left, right = st.columns(2, gap="medium")
-            with left.container(border=True):
-                render_answer(turn, "plain", live)
-            with right.container(border=True):
-                render_answer(turn, "rag", live)
-        else:
-            render_answer(turn, mode, live)
-
-        render_sources(turn["sources"], turn["id"])
+        render_answer(turn, mode, live)
+        if mode != "plain":
+            render_sources(turn["sources"], turn["id"])
 
 
 # ---------- 侧边栏 ----------
@@ -296,9 +311,9 @@ with st.sidebar:
         "回答模式",
         options=list(MODES),
         format_func=MODES.get,
-        default="compare",
+        default="rag",
         required=True,
-        help="对比模式会让模型分别在不检索和检索文档的情况下回答同一个问题。",
+        help="无 RAG 时模型直接回答，不检索文档。",
     )
     projects = st.pills(
         "数据源",
@@ -344,10 +359,13 @@ with st.sidebar:
 
 st.markdown(
     '<div class="hero">'
+    '<div class="hero-mark">文</div>'
+    "<div>"
+    '<div class="hero-kicker">Obsidian · Dataview · Tasks</div>'
     '<div class="hero-title">Obsidian 文档助手</div>'
-    '<div class="hero-sub">从 Obsidian、Dataview、Tasks 的官方文档中检索依据，'
-    f"再由本地 {LLM_NAME} 生成带来源引用的回答</div>"
-    "</div>",
+    '<div class="hero-sub">从官方文档检索依据，'
+    f"再由本地 {html.escape(LLM_NAME)} 生成带来源引用的回答</div>"
+    "</div></div>",
     unsafe_allow_html=True,
 )
 
